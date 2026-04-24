@@ -1,0 +1,2968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <script>
+      // 核心拦截逻辑：一旦发现当前域名是旧的白嫖域名
+      if (window.location.hostname === "bandori-test.pages.dev") {
+        // 提取当前 URL 中的路径（如 /result）和参数（如 ?role=matsubara）
+        var path = window.location.pathname;
+        var query = window.location.search;
+        
+        // 使用 replace 方法进行重定向（关键点：replace 不会产生历史记录，用户点浏览器“返回”不会陷入死循环）
+        window.location.replace("https://quiz.fueee.moe" + path + query);
+      }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测测你与哪个Bangdream角色最接近</title>
+</head>
+<body>
+<div class="zen" id="welcome-page">
+  <h1 class="welcome-text" style="margin-bottom: 2px;">测测你与哪个Bangdream角色最接近</h1>
+  <h2 class="welcome-text" style="font-size: 15px; text-align: center; margin-bottom: 10px;">本测试仅供娱乐</h2>
+  <h3 class="welcome-text" style="font-size: 18px; text-align: center; margin-bottom: 10px;">版本V1.2---火速更新中</h3>
+  <button class="main-btn" id="start-btn">开始测试</button>
+</div>
+
+<!-- 答题页面（初始隐藏） -->
+<div class="zen" id="quiz-page" style="display: none; position: relative;">
+  <!-- 进度条容器（右上角） -->
+  <div class="progress-container">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-bar"></div>
+    </div>
+    <span class="progress-text" id="progress-text">1/3</span>
+  </div>
+
+  <!-- 回退按钮（左下角） -->
+  <button class="back-btn" id="back-btn" style="display: none;">← 上一题</button>
+
+  <!-- 题目区域 -->
+  <div class="question-container">
+    <h2 class="question-text" id="question">你遇到朋友难过时，更倾向于怎么做？</h2>
+  </div>
+  
+  <!-- 选项区域 -->
+  <div class="options-container" id="options">
+    <!-- 选项会通过JS动态生成 -->
+  </div>
+</div>
+
+<!-- 结果页面（初始隐藏） -->
+<div class="zen" id="result-page" style="display: none;">
+  <h1 class="result-title">测试结果：</h1>
+  <div class="result-list" id="result-list"></div>
+  <button class="main-btn" id="restart-btn" style="margin-top: 2rem;">重新测试</button>
+</div>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, sans-serif;
+  background: linear-gradient(160deg, #f8fafc, #f1f5f9);
+}
+.zen {
+  text-align: center; 
+  padding: 3rem; 
+  max-width: 90%; 
+  width: 90%;
+  position: relative; /* 为绝对定位的按钮/进度条提供参考 */
+  padding-bottom: 6rem; /* 给回退按钮留空间 */
+}
+
+/* 欢迎页样式 */
+.welcome-text {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 2rem;
+  line-height: 1.4;
+}
+.main-btn {
+  font-size: 1rem;
+  color: white;
+  background: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  padding: 0.8rem 2.5rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2);
+  transition: all 0.2s ease;
+  width: 50% !important;
+  margin: 0.5rem auto !important;
+  text-align: center !important;
+  white-space: nowrap;
+}
+.main-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 3px 8px rgba(59, 130, 246, 0.3);
+}
+.main-btn:active {
+  transform: scale(0.98);
+}
+
+/* 答题页样式 */
+.question-container {
+  margin-bottom: 2.5rem;
+  padding: 0 0.5rem;
+  margin-top: 3rem; /* 优化进度条空间，避免重叠 */
+}
+.question-text {
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.6; /* 支持换行的行高 */
+  text-align: left; /* 题目左对齐更易读 */
+}
+.options-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* 自适应列数 */
+  gap: 1rem;
+  width: 100%;
+}
+.option-btn {
+  font-size: 0.95rem;
+  color: #1e293b;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.option-btn:hover {
+  background: #f8fafc;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+.option-btn:active {
+  transform: scale(0.98);
+}
+.option-btn.selected { /* 新增选中样式 */
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+/* 回退按钮样式（左下角） */
+.back-btn {
+  position: relative;
+  display: block;
+  margin-top: 1.5rem;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+  color: #3b82f6;
+  background: transparent;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.back-btn:hover {
+  background: #eff6ff;
+}
+.back-btn:disabled {
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+/* 进度条样式（右上角） */
+.progress-container {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  width: 0%; /* 初始进度0 */
+  background: #3b82f6;
+  border-radius: 4px;
+  transition: width 0.3s ease; /* 进度变化动画 */
+}
+.progress-text {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* 结果页样式 */
+.result-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 2rem;
+}
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.result-item {
+  width: 95%;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+.result-item span:first-child {
+  font-weight: 500;
+  color: #1e293b;
+}
+.result-item span:last-child {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  /* 整体页面加宽 15% + 左右留白更小 */
+  .zen {
+    max-width: 95%;
+    width: 95%;
+    padding: 1.2rem;
+  }
+
+  .welcome-text, .result-title {
+    font-size: 1.4rem;
+  }
+
+  /* 按钮改成 三行显示 + 左对齐 + 不换行 */
+  .main-btn {
+    width: 50% !important;
+    padding: 0.9rem 1rem;
+    margin: 0.5rem auto !important;
+    white-space: nowrap;
+    text-align: center !important;
+    padding-left: 1.2rem;
+  }
+
+  .question-text {
+    font-size: 1.15rem;
+    text-align: left;
+  }
+
+  .options-container {
+    grid-template-columns: 1fr;
+  }
+
+  /* 结果列表框：自动加宽 + 等宽 + 不超出 */
+  .result-item {
+    width: 100%;
+    min-width: 100%;
+    padding: 0.9rem 0.8rem;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .question-container {
+    margin-top: 3.5rem;
+  }
+}
+
+/* 极值显示框响应式适配 */
+@media (max-width: 768px) {
+  #top-three-row, #bottom-three-row {
+    flex-direction: column;
+  }
+  #extremes-container {
+    padding: 0 0.5rem;
+  }
+  #top-three-row > div, #bottom-three-row > div {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
+</style>
+
+<script>
+window.BANDORI_API_BASE = "https://bandori-api.120224.xyz";
+</script>
+
+<script>
+// 1. 角色名称映射（修复核心体验问题）
+const characterMap = {
+  ksm: "户山香澄",
+  tae: "花园多惠",
+  rimi: "牛込里美",
+  saya: "山吹沙绫",
+  ars: "市谷有咲",
+  ran: "美竹兰",
+  moca: "青叶摩卡",
+  hmr: "上原绯玛丽",
+  tme: "宇田川巴",
+  tgm: "羽泽鸫",
+  aya:"丸山彩",
+  hina:"冰川日菜",
+  cst:"白鹭千圣",
+  maya:"大和麻弥",
+  eve:"若宫伊芙",
+  ykn:"凑友希那",
+  sayo:"冰川纱夜",
+  lisa:"今井莉莎",
+  ako:"宇田川亚子",
+  rinko:"白金燐子",
+  kkr:"弦卷心",
+  kor:"濑田薰",
+  hgm:"北泽育美",
+  kanon:"松原花音",
+  msk:"奥泽美咲",
+  msr:"仓田真白",
+  toko:"桐谷透子",
+  nnm:"广町七深",
+  tks:"二叶筑紫",
+  rui:"八潮瑠唯",
+  layer:"LAYER",
+  lock:"LOCK",
+  mask:"MASKING",
+  pareo:"PAREO",
+  chu:"CHUCHU",
+  tmr:"高松灯",
+  anon:"千早爱音",
+  rana:"要乐奈",
+  soyo:"长崎爽世",
+  taki:"椎名立希",
+  uik:"三角初华",
+  mtm:"若叶睦",
+  umr:"八幡海铃",
+  nyam:"祐天寺若麦",
+  saki:"丰川祥子"
+};
+// 角色专属描述文案（自己在这里填每句不一样的）
+const characterDesc = {
+  ksm: "聆听繁星的节拍",
+  tae: "灵光一闪打工小兔",
+  rimi: "追寻明日的方向标",
+  saya: "愿珍藏彼此的回忆",
+  ars: "苦涩又甜蜜的心意",
+  ran: "你与我最珍视的夕阳",
+  moca: "此生唯愿伴你身侧",
+  hmr: "公主与更大的舞台",
+  tme: "向前迈出新的一步",
+  tgm: "普通的我，热烈的心",
+  aya: "描绘梦想的极彩色",
+  hina: "寻找更有趣的一日",
+  cst: "我的偶像，我的梦想",
+  maya: "器械宅每日进化中",
+  eve: "这就是我的偶像道",
+  ykn: "于荆棘丛中骄傲绽放",
+  sayo: "一丝不苟的温暖灵魂",
+  lisa: "白车轴草与你的约定",
+  ako: "一如明灯，驱散迷雾",
+  rinko: "奏响心声的叙事曲",
+  kkr: "世界之大，尽在手中",
+  kor: "我已立于舞台之上",
+  hgm: "超天然系元气少女",
+  kanon: "收获勇气的蓝水母",
+  msk: "敏感的全能型少女",
+  msr: "接纳伤痕，驶向光辉",
+  toko: "我最任性的无限回响",
+  nnm: "遍寻真我的底色",
+  tks: "历经风雨，随你同行",
+  rui: "序章、风景与答案",
+  layer: "独属于我的璀璨星光",
+  lock: "逐梦人以双手筑梦",
+  mask: "燃烧我的爱与风格",
+  pareo: "因君璀璨，伴君闪耀",
+  chu: "揭开帷幕，改变世界",
+  tmr: "迷茫的星，坚定前进",
+  anon: "只是想向你伸出援手",
+  rana: "随心所欲的每一日",
+  soyo: "雨脚如麻，不愿忘怀",
+  taki: "光芒、执念与劣等感",
+  uik: "镜中之人，行向何处",
+  mtm: "交错的心，何欲何求",
+  umr: "沉默的欲求置于何处",
+  nyam: "狂热的爱，肆意绽放",
+  saki: "假面下无主的灵魂"
+};
+const characterQuotes = {
+  ksm: "聆听繁星的节拍",
+  tae: "灵光一闪打工小兔",
+  rimi: "追寻明日的方向标",
+  saya: "愿珍藏彼此的回忆",
+  ars: "苦涩又甜蜜的心意",
+  ran: "你与我最珍视的夕阳",
+  moca: "此生唯愿伴你身侧",
+  hmr: "公主与更大的舞台",
+  tme: "向前迈出新的一步",
+  tgm: "普通的我，热烈的心",
+  aya: "描绘梦想的极彩色",
+  hina: "寻找更有趣的一日",
+  cst: "我的偶像，我的梦想",
+  maya: "器械宅每日进化中",
+  eve: "这就是我的偶像道",
+  ykn: "于荆棘丛中骄傲绽放",
+  sayo: "一丝不苟的温暖灵魂",
+  lisa: "白车轴草与你的约定",
+  ako: "一如明灯，驱散迷雾",
+  rinko: "奏响心声的叙事曲",
+  kkr: "世界之大，尽在手中",
+  kor: "我已立于舞台之上",
+  hgm: "超天然系元气少女",
+  kanon: "收获勇气的蓝水母",
+  msk: "敏感的全能型少女",
+  msr: "接纳伤痕，驶向光辉",
+  toko: "我最任性的无限回响",
+  nnm: "遍寻真我的底色",
+  tks: "历经风雨，随你同行",
+  rui: "序章、风景与答案",
+  layer: "独属于我的璀璨星光",
+  lock: "逐梦人以双手筑梦",
+  mask: "燃烧我的爱与风格",
+  pareo: "因君璀璨，伴君闪耀",
+  chu: "揭开帷幕，改变世界",
+  tmr: "迷茫的星，坚定前进",
+  anon: "只是想向你伸出援手",
+  rana: "随心所欲的每一日",
+  soyo: "雨脚如麻，不愿忘怀",
+  taki: "光芒、执念与劣等感",
+  uik: "镜中之人，行向何处",
+  mtm: "交错的心，何欲何求",
+  umr: "沉默的欲求置于何处",
+  nyam: "狂热的爱，肆意绽放",
+  saki: "假面下无主的灵魂"
+};
+
+// 2. 测试题库（新增每个选项的计分规则）
+const quizData = [
+  {
+    question: "1.假设现在你和你身边的人需要组队完成某项工作，工作并不困难，且不存在时间冲突问题，那么你更倾向于在团队中扮演什么角色？",
+    options: [
+      {
+        text: "A.我当然是团队的领导",
+        scores: {ksm:  +2, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +2, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+2, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +2,
+                 tmr:  0, anon:+2, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+2}
+      },
+      {
+        text: "B.我不想当队长，但我发现有我擅长的部分，我会把这些做好",
+        scores: {ksm:  0, tae: +1, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  0, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: +1, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.我不确定自己擅长什么，总之安排什么我就干什么",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: +1, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "D.我不想参加团队工作，即使我有这个时间",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      }
+    ]
+  },
+  {
+    question: "2.假如你被推举为乐队队长，你的反应会更接近哪一种？",
+    options: [
+      {
+        text: "A.我有这个能力，选我就对了",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.原来大家觉得我更适合做队长吗，那么，我会努力做好的",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: +1, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "C.诶，竟然选了我做队长吗，好吧，我…我会尽力的",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.我是队长吗…有趣，接下来大家可要听我的喽",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+2, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+2, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "E.为什么要选我做队长，明明有比我更合适的人选…",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "3.在你看来，组乐队需要有一个具体的目标吗，比如“在xx比赛中取得一定名次”，“我们要登上xxx的舞台”？",
+    options: [
+      {
+        text: "A.需要一个具体目标，并且我们一定要努力将其实现",
+        scores: {ksm:  +1, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:+2, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +2,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+2}
+      },
+      {
+        text: "B.需要具体目标，但也不是非达成不可，它更多是用来激励我们前进的",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.并不需要具体目标，只要大致描绘一个方向就够了",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.目标什么的，我无所谓，交给其他队友决定就好",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "4.你是否拥有“读懂人心”的洞察力？",
+    options: [
+      {
+        text: "A.有，我可以比较正确地理解对方的真心",
+        scores: {ksm:  0, tae: +2, rimi:0, saya: +2, ars: 0,
+                 ran:  +1, moca:+2, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +2, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  +2, anon:0, rana:+2, soyo: +1, taki:0,
+                 uik:  0, mtm: +2, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.没有，我难以看透他人的内心",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  +1, hina:+2, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:+2,
+                 uik:  +1, mtm: 0, umr: +2, nyam: 0, saki:+2}
+      },
+      {
+        text: "C.我没有特别注意自己是否有这个特质",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: -1, ars: 0,
+                 ran:  -1, moca:-1, hmr: +1, tme:  0, tgm: -1,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: 0,
+                 ykn:  -1, sayo:-1, lisa:-1, ako:  +1, rinko:-1,
+                 kkr:  0, kor: -1, hgm: +1, kanon:0, msk: 0,
+                 msr:  -1, toko:+1, nnm: 0, tks:  0, rui: -1,
+                 layer:-1, lock:+1, mask:0, pareo:0, chu: -1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: -1, umr: 0, nyam: +1, saki:0}
+      }
+    ]
+  },
+  {
+    question: "5.如果你是乐队队长，在制定乐队计划时，你的行事风格会更接近哪种？",
+    options: [
+      {
+        text: "A.我会充分考虑队员的诉求和状况，充分讨论后制定",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:+1, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: +1, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.这个好，加进计划，那个也不错，也加进去（最后写了一大堆）",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.拥有队长权威的我所制定的计划，就是全队的纲领，必须优先执行",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "6.你更喜欢什么样的乐队氛围？或者说你想打造什么样的乐队氛围？",
+    options: [
+      {
+        text: "A.实力至上的高水准乐队",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +2, sayo:+2, lisa:0, ako:  +2, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+2, lock:0, mask:+2, pareo:+2, chu: +2,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +2, saki:+2}
+      },
+      {
+        text: "B.欢欢乐乐，友情至上的乐队",
+        scores: {ksm:  +2, tae: +2, rimi:+2, saya: +2, ars: +2,
+                 ran:  +2, moca:+2, hmr: +2, tme:  +2, tgm: +2,
+                 aya:  +2, hina:+2, cst: +2, maya: +2, eve: +2,
+                 ykn:  0, sayo:0, lisa:+2, ako:  0, rinko:+2,
+                 kkr:  +2, kor: +2, hgm: +2, kanon:+2, msk: +2,
+                 msr:  +2, toko:+2, nnm: +2, tks:  +2, rui: +2,
+                 layer:0, lock:+2, mask:0, pareo:0, chu: 0,
+                 tmr:  +2, anon:+2, rana:+2, soyo: +2, taki:+2,
+                 uik:  +2, mtm: +2, umr: +2, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "7.周末即将到来，你准备外出散心，你更有可能选择哪一个去处？",
+    options: [
+      {
+        text: "A.繁华的商业街",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: +1, saki:0}
+      },
+      {
+        text: "B.公园的小河边",
+        scores: {ksm:  0, tae: +1, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.儿时的秘密基地",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:+1, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "D.附近新开的游乐场",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+            {
+        text: "E.宅家不出门",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "8.你是否已经习惯于做一名旁观者，而不愿参与到事件中去？",
+    options: [
+      {
+        text: "A.是的，我已经习惯于作为旁观者审视身边的事情",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +2,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  0, mtm: +1, umr: +2, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.并不，我往往会参与到身边的事情中",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:+1, cst: 0, maya: +1, eve: +1,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:+1, msk: 0,
+                 msr:  +1, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.我有时会选择旁观，有时会参与到事件中",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "9.你会刻意塑造自己的“人设”吗？",
+    options: [
+      {
+        text: "A.会，哪怕是装模作样，我也要在外人眼中维持形象",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: +1, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.可以营造自己的人设，但太刻意还是算了",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.不会，人设没什么意义，我更想表现自然的自我",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: +1, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:+1, msk: 0,
+                 msr:  +1, toko:+1, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:0, chu: +1,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "10.你更喜欢以下哪组词语（更能引起你的共鸣）？",
+    options: [
+      {
+        text: "A.孤星；无论如何；当下",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.穿云破雾；不甘心；迸发",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.无意识；随波逐流；阴霾",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "D.色彩斑斓；可能性；眺望",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "E.陪伴；自我的风格；守护",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  +1, moca:+1, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "F.交织；足迹；跌跌撞撞",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "11.在公共场合，以及面对前辈时，你可以表现得礼貌得体。",
+    options: [
+      {
+        text: "A.是的，在这些场合下的礼貌已经成为了我的习惯",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  +1, moca:0, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.基本上可以做到，但我明显是在硬撑着",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "C.不是，我在这些场合里也是平日的轻松状态",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      }
+    ]
+  },
+  {
+    question: "12.当朋友们谈及“超能力”时，你最有可能说出以下哪句话？",
+    options: [
+      {
+        text: "A.超能力完全就是无稽之谈",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.开始讨论什么样的超能力更加酷炫",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.超能力什么的也太……（感到离谱）",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.其实我就是超能力者",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "E.要是我有xxx超能力就好了（有明确想要的超能力）",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:+1, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "13.你的乐队演出大获成功，此时你心中最强烈的想法更有可能是？",
+    options: [
+      {
+        text: "A.太好了，我们真的做到了！",
+        scores: {ksm:  0, tae: +1, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.多亏大家的陪伴和努力，才有今天的成功",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.这次胜利只是我（我们）登上顶峰的一小步罢了",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "D.爽！",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+2, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+2, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "E.……(无感，甚至有些失落)",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "14.如果你是乐队队长，你的心态可能更接近以下哪种？",
+    options: [
+      {
+        text: "A.既然我是队长，我就要是全队实力最强的",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.虽然我是队长，但我真的水平有限",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.能否担任队长和实力强弱没有绝对联系",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:+1, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:+1, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: +1, saki:0}
+      },
+      {
+        text: "D.……（对这个话题毫不在意）",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "15.如果你的乐队中有成员掉队了，你可能会怎么想/怎么做？",
+    options: [
+      {
+        text: "A.我认为ta需要加倍努力了",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "B.我认为我们需要关照ta一下",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:+1, cst: +1, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:+1, msk: +1,
+                 msr:  +1, toko:+1, nnm: +1, tks:  +1, rui: 0,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.我没注意到这些事情",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "16.你在人际交往中的形象是？",
+    options: [
+      {
+        text: "A.交际花，社交无压力",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "B.不会主动社交，但不回避社交",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.回避社交，但足以应付必要的社交",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "D.超级社恐（或对社交极不感兴趣/讨厌），仅进行最低限度的社交",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "17.你会很在意周围人的评价吗？（包括夸奖和批评）",
+    options: [
+      {
+        text: "A.我要有自己的风格，我不是很在意他人的评价",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  +1, sayo:0, lisa:0, ako:  0, rinko:+1,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.我会有些在意，尤其难以忽略外界的批评（即便被夸10句，也会对1次的批评耿耿于怀）",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: 0, eve: +1,
+                 ykn:  0, sayo:+1, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: +1,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "C.我会有些在意，但我更在意他人对我的夸奖（就算批评很多，但只要有夸奖的声音我就会很满意）",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "D.我非常在意外界的声音，它们深度影响了我的生活（他人的话好像尖刀一样）",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "18.你乐于向身边的人安利自己喜欢的东西吗？",
+    options: [
+      {
+        text: "A.是的，我很乐意主动分享我喜欢的事物",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  +1, hina:+1, cst: 0, maya: +1, eve: +1,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "B.看情况，如果我认为ta会感兴趣的话，我会安利",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.不会，我更喜欢独自享受",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "19.临近毕业，身为乐队的一员，你的想法更接近？",
+    options: [
+      {
+        text: "A.我好害怕乐队成员各奔东西，我们不会就解散了吧",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.空间的分隔切不断我们的羁绊，乐队早已是我们心中的港湾",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.毕业又怎样，就算到了天涯海角，我们也要一起组乐队",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.好聚好散，日后再见时，往事也不失为一桩笑谈",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "E.我从未思考过/懒得思考这个问题",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: +1, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "20.请诚实作答：你经常自我反思和检讨吗？",
+    options: [
+      {
+        text: "A.是的，我经常反思自己有何欠缺，且会付出行动改变自己",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.有时，一些重大的事件会让我反思，但我平时不愿想得太多",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.很少，我不是很愿意直面心中最深的恐惧和弱点",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: +1, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "D.比起反思，我更在意明天吃什么",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "21.请诚实作答：你是“压力怪”吗（包括对身边人和陌生人）？",
+    options: [
+      {
+        text: "A.不是，我觉得压力别人对谁都不好，我一般是比较温和的",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:+1, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.我不会主动压力别人，但我被压力的时候会反击",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: +1, nyam: +1, saki:0}
+      },
+      {
+        text: "C.我曾经是，但后来我意识到这样很不好，所以改正了",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.是的，我情绪上来了很难控制得住，即便事后我会后悔",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "22.你更喜欢参与台前演出还是幕后工作？",
+    options: [
+      {
+        text: "A.我更喜欢在台上展示自己，即使这样可能很累",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: +1, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  +1, hina:+1, cst: +1, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.我更倾向于在幕后工作，即使可能被人忽略",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: +1,
+                 ran:  +1, moca:+1, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: +1, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.反正只是找个位置工作罢了，我无所谓",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "23.你是个很自信的人吗？",
+    options: [
+      {
+        text: "A.我总是很自信，我就是觉得自己可以做到",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: 0,
+                 tmr:  0, anon:+1, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.只有在谨慎评估后，我才会在某一方面展现自信",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.我有时会缺乏自信，总是觉得自己还不够好",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: +1,
+                 ran:  0, moca:+1, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: +1, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.我总是缺乏自信，需要旁人的帮助才能短暂走出这种心态",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "24.你是否会压抑自己的真实想法？",
+    options: [
+      {
+        text: "A.几乎不会或极少",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "B.有时会，但时机到了也能说出来",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.很多时候会，且有些事情一直也说不出口",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.经常，甚至人前人后完全是两幅面孔",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: +1, umr: +1, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "25.如果乐队队员间出现了矛盾而争吵，你更有可能怎么做？",
+    options: [
+      {
+        text: "A.我会感到慌张，不知所措",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.想办法喊停，把ta们分开冷静一下",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  0, sayo:+1, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.接一个话头，加入跟着一起吵",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "D.继续旁观，等ta们吵完",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "26.假如你身旁的人指着天上的一朵云，说它看起来很像一条鱼，此时你可能在想……",
+    options: [
+      {
+        text: "A.哇，是鱼形状的云彩",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  +1, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.额……好丰富的想象力",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "C.哦，这么一说确实有点像",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  +1, moca:0, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.鱼，好吃，应该再配上xxx一起吃",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "E.只是一片云，没什么特别的",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "27.你会对生活中人和事物的“变化”感到恐惧吗？",
+    options: [
+      {
+        text: "A.我很害怕身边人和事物的变化，经常产生希望时间停下来的想法",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  0, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: +1, umr: +1, nyam: 0, saki:+1}
+      },
+      {
+        text: "B.有些害怕，但变化不可避免，我会学着去适应它，同时守护好其中“不变”的事物",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: 0,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.不害怕，变化是作为客观规律存在的，我也时刻准备好迎接每一次变化",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "28.你更喜欢什么样的歌词？",
+    options: [
+      {
+        text: "A.讲述日常的喜怒哀乐，所见所想",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: +1, ars: +1,
+                 ran:  +1, moca:+1, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.讲述梦想、勇气、挫折和成长",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: 0,
+                 msr:  +1, toko:+1, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.讲述突破与支配，极具霸气的歌词",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: +1, saki:0}
+      },
+      {
+        text: "D.雾里看花、神秘而华丽的歌词",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "E.我不在意歌词内容",
+        scores: {ksm:  -2, tae: -2, rimi:-1, saya: -2, ars: -2,
+                 ran:  -2, moca:-2, hmr: -1, tme:  -1, tgm: -2,
+                 aya:  -2, hina:-1, cst: -1, maya: -1, eve: -2,
+                 ykn:  -2, sayo:-2, lisa:-2, ako:  -1, rinko:-2,
+                 kkr:  -2, kor: -2, hgm: 0, kanon:-2, msk: -2,
+                 msr:  -2, toko:0, nnm: -2, tks:  -2, rui: -2,
+                 layer:-2, lock:-1, mask:0, pareo:-2, chu: -2,
+                 tmr:  -2, anon:-1, rana:-2, soyo: -2, taki:-2,
+                 uik:  -2, mtm: 0, umr: 0, nyam: -1, saki:0}
+      }
+    ]
+  },
+  {
+    question: "29.你是否经常在心中衡量事物的价值或得失？",
+    options: [
+      {
+        text: "A.我总会评估做一件事的得失，如果我认定收获不确定或者收获少于代价，我就不会做这件事",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.我会评估做一件事的得失，但不会过于患得患失，什么事都可以尝试一下再看",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.大多数时候我只是简单思考一下，只要我觉得问题不大我都会做",
+        scores: {ksm:  +1, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:+1, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:0, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "D.我很少/从不评估做某件事的得失（习惯于凭感觉/习惯于听从指挥）",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "30.我曾经在某个时刻突然意识到“原来大家一直都帮了我这么多啊”，这个说法符合你的情况吗？",
+    options: [
+      {
+        text: "A.是的，我之前曾经产生过这样的想法",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: +1, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:+1, nnm: 0, tks:  0, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.看到这道题，我这才意识到，我好像确实是这样",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "C.我一直都把身边人对我的关照看在眼里，记在心上，并非“突然意识到”",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:+1, hmr: +1, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  +1, mtm: +1, umr: +1, nyam: +1, saki:0}
+      }
+    ]
+  },
+  {
+    question: "31.你是个情绪稳定的人吗？",
+    options: [
+      {
+        text: "A.是的，无论发生好事还是坏事，我大多数情况下都能保持镇定",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.我一般情况下可以保持镇定，但遇到突发或重大事件时，情绪会控制不住",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:+1, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "C.不是，我容易受到刺激（好坏都包括）而激动/惊讶/慌乱/愤怒",
+        scores: {ksm:  +1, tae: 0, rimi:+1, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:+1, msk: 0,
+                 msr:  +1, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:0, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "32.在与他人畅享未来时，你可能会……",
+    options: [
+      {
+        text: "A.我会说出我自己的设想，积极讨论",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  +1, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:+1, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.我会做一个倾听者，说的会很少",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "C.我不喜欢讨论这种话题，很不自在",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "33.你会不会在某些事情上钻牛角尖？",
+    options: [
+      {
+        text: "A.不会/没有过这种经历",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  0, moca:+1, hmr: +1, tme:  0, tgm: +1,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: +1,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.会/我曾经这样做过",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  +1, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:+1, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: 0, umr: +1, nyam: +1, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "34.你是一个行事果断，雷厉风行的人吗？",
+    options: [
+      {
+        text: "A.是的，我的行动就从不拖泥带水",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: +1, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: +1, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: +1, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:+1, pareo:+1, chu: +1,
+                 tmr:  0, anon:+1, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: +1, saki:+1}
+      },
+      {
+        text: "B.不是，有时我会在行动过程中产生犹豫",
+        scores: {ksm:  +1, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:+1, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "35.你喜欢借助某些事物来表达自己的感情吗？",
+    options: [
+      {
+        text: "A.不，我习惯于直接表达",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: +1,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:+1, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:+1, pareo:0, chu: +1,
+                 tmr:  +1, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "B.是的，我更喜欢借物抒情",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: +1,
+                 ran:  +1, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "C.不，我很少表达（经常压抑）自己的感情",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:+1, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "36.你会制定严格的时间表，并严格按照计划行事吗？",
+    options: [
+      {
+        text: "A.是的，我会制定严格的时间表且按计划行事",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:+1, mask:0, pareo:+1, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.我会制定大致的时间表，执行时可能会有更改，但该做的基本都能完成",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  +1, hina:0, cst: 0, maya: +1, eve: +1,
+                 ykn:  +1, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.我会制定时间表，但未必按时间表做事，可能会拖沓或临时删减",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "D.我没有制定时间表的习惯，往往是凭感觉做事，做完一件再看下一件事是什么",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "37.你最喜欢下列哪句歌词？",
+    options: [
+      {
+        text: "A.你想用这双手抓住什么，你想用这声音传达什么，为了守护那重要的东西，现在就跳脱出别人的影子吧",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +2,
+                 ran:  +2, moca:+1, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  +1, sayo:+2, lisa:+2, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: +2,
+                 layer:+2, lock:+1, mask:+1, pareo:+2, chu: +1,
+                 tmr:  +1, anon:+2, rana:0, soyo: +1, taki:+2,
+                 uik:  +2, mtm: +1, umr: +2, nyam: +2, saki:0}
+      },
+      {
+        text: "B.即使现在柔弱依旧，光芒仍在彼处映照，响彻远方的热切心愿，犹将你我相牵，比翼高飞",
+        scores: {ksm:  +1, tae: 0, rimi:+1, saya: +1, ars: 0,
+                 ran:  0, moca:+2, hmr: +1, tme:  0, tgm: +2,
+                 aya:  +2, hina:+1, cst: +2, maya: +1, eve: +2,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +2,
+                 msr:  +2, toko:0, nnm: +1, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:+2, chu: +1,
+                 tmr:  +2, anon:+2, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: +2, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "C.别被他人的正义、他人的常识、他人的价值观所迷惑，遵循内心的答案，自由的在这个世界起舞吧",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+2, cst: +1, maya: +1, eve: +1,
+                 ykn:  +2, sayo:+2, lisa:+1, ako:  +2, rinko:+1,
+                 kkr:  +2, kor: +2, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: +1,
+                 layer:+1, lock:0, mask:+2, pareo:+1, chu: +2,
+                 tmr:  +1, anon:0, rana:+2, soyo: 0, taki:+1,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:+1}
+      },
+      {
+        text: "D.涌上心头的思绪，每每唱出就会愈加鲜明，就像回应活着的证明一般",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: +1,
+                 ran:  +2, moca:+2, hmr: +2, tme:  +2, tgm: +2,
+                 aya:  +1, hina:0, cst: 0, maya: 0, eve: +1,
+                 ykn:  +2, sayo:+1, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +1, kor: +1, hgm: 0, kanon:0, msk: +1,
+                 msr:  +2, toko:0, nnm: +2, tks:  +1, rui: +1,
+                 layer:+1, lock:0, mask:+2, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:+2,
+                 uik:  0, mtm: 0, umr: +1, nyam: +2, saki:+1}
+      },
+      {
+        text: "E.静候着即将到来的明媚阳光，在这变化莫测的天空上，描绘我们矢志不渝的牵念",
+        scores: {ksm:  +2, tae: +2, rimi:+2, saya: +2, ars: +2,
+                 ran:  +2, moca:+2, hmr: +2, tme:  +2, tgm: +2,
+                 aya:  +1, hina:0, cst: +1, maya: +2, eve: +2,
+                 ykn:  +2, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +2, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:+2, chu: +2,
+                 tmr:  +2, anon:+1, rana:+2, soyo: +2, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "F.我将双手轻轻探出船舷之外，恍若触碰到了那温柔璀璨的光明，相信内心的声音，坚定地驶向既定的目标",
+        scores: {ksm:  +1, tae: +1, rimi:+1, saya: 0, ars: 0,
+                 ran:  +1, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +2, hina:+1, cst: +2, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:+2, msk: +1,
+                 msr:  +2, toko:+1, nnm: +2, tks:  +2, rui: +2,
+                 layer:+1, lock:+2, mask:+1, pareo:0, chu: +1,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:+1,
+                 uik:  +1, mtm: +1, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "G.我所发现的今日熠熠生辉的天空，想稍微向某人传告它的存在",
+        scores: {ksm:  0, tae: +1, rimi:0, saya: +1, ars: +1,
+                 ran:  0, moca:+2, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  0, hina:+1, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  +1, toko:0, nnm: +2, tks:  0, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:+1, chu: 0,
+                 tmr:  +2, anon:+1, rana:+1, soyo: +1, taki:+2,
+                 uik:  +2, mtm: +1, umr: +1, nyam: 0, saki:+1}
+      },
+      {
+        text: "H.沉醉在黑夜中张开血红的嘴唇，无情地吞噬着我，堕落沉沦，深陷诡秘莫测，无法自拔",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  +2, mtm: +2, umr: +1, nyam: 0, saki:+2}
+      },
+      {
+        text: "I.你我的喜悦合起来的话，看啊！无论是谁都有着拯救他人的力量",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: +1, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  0, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  +2, kor: +2, hgm: +2, kanon:+1, msk: +1,
+                 msr:  0, toko:+1, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "38.如果你是乐队队长，在演出结束后，你会带领乐队做什么？",
+    options: [
+      {
+        text: "A.趁热打铁，立刻复盘反思",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: 0, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  0, rinko:+1,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:+1, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.总之先开个庆功宴再说",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: +1, ars: 0,
+                 ran:  +1, moca:+1, hmr: +1, tme:  +1, tgm: 0,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  +1, rinko:0,
+                 kkr:  0, kor: +1, hgm: +1, kanon:+1, msk: +1,
+                 msr:  0, toko:+1, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:+1, chu: 0,
+                 tmr:  +1, anon:+1, rana:0, soyo: +1, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.没时间休息了，立即为下一场演出做准备",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:+1, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:+1, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:+1}
+      }
+    ]
+  },
+  {
+    question: "39.假如你的乐队遇到了一些来自外部的问题/困难，你更倾向于……",
+    options: [
+      {
+        text: "A.团结全队成员，用我们自己的方式击破困难",
+        scores: {ksm:  0, tae: +1, rimi:+1, saya: 0, ars: +1,
+                 ran:  +1, moca:0, hmr: 0, tme:  +1, tgm: +1,
+                 aya:  +1, hina:+1, cst: 0, maya: 0, eve: +1,
+                 ykn:  +1, sayo:+1, lisa:0, ako:  +1, rinko:+1,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  +1, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:+1, lock:+1, mask:+1, pareo:+1, chu: +1,
+                 tmr:  +1, anon:0, rana:+1, soyo: 0, taki:+1,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:0}
+      },
+      {
+        text: "B.找其他乐队的朋友支援，人多力量大",
+        scores: {ksm:  +1, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: +1, eve: 0,
+                 ykn:  0, sayo:0, lisa:+1, ako:  0, rinko:0,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: 0,
+                 msr:  0, toko:0, nnm: 0, tks:  +1, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: +1, saki:0}
+      },
+      {
+        text: "C.动用自己的手段/人脉，这点问题不足挂齿",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: +1, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "D.想办法规避/绕开这个问题，不想正面遇上麻烦",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: +1, ars: 0,
+                 ran:  0, moca:+1, hmr: 0, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  0, kor: 0, hgm: 0, kanon:0, msk: +1,
+                 msr:  0, toko:0, nnm: 0, tks:  0, rui: +1,
+                 layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                 tmr:  0, anon:+1, rana:0, soyo: 0, taki:0,
+                 uik:  0, mtm: +1, umr: +1, nyam: 0, saki:0}
+      }
+    ]
+  },
+  {
+    question: "40.在学习方面，你的情况更接近？",
+    options: [
+      {
+        text: "A.我愿意参与任何学科领域的学习",
+        scores: {ksm:  0, tae: 0, rimi:+1, saya: +1, ars: +1,
+                 ran:  0, moca:0, hmr: 0, tme:  0, tgm: +1,
+                 aya:  +1, hina:0, cst: +1, maya: +1, eve: +1,
+                 ykn:  0, sayo:+1, lisa:+1, ako:  0, rinko:+1,
+                 kkr:  0, kor: +1, hgm: 0, kanon:+1, msk: +1,
+                 msr:  +1, toko:0, nnm: 0, tks:  +1, rui: +1,
+                 layer:+1, lock:+1, mask:0, pareo:+1, chu: 0,
+                 tmr:  +1, anon:0, rana:0, soyo: +1, taki:0,
+                 uik:  0, mtm: 0, umr: +1, nyam: 0, saki:0}
+      },
+      {
+        text: "B.我只愿意学自己感兴趣的",
+        scores: {ksm:  +1, tae: +1, rimi:0, saya: 0, ars: 0,
+                 ran:  +1, moca:+1, hmr: +1, tme:  0, tgm: 0,
+                 aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                 ykn:  +1, sayo:0, lisa:0, ako:  +1, rinko:0,
+                 kkr:  0, kor: 0, hgm: +1, kanon:0, msk: 0,
+                 msr:  0, toko:+1, nnm: 0, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:0, pareo:0, chu: +1,
+                 tmr:  0, anon:+1, rana:+1, soyo: 0, taki:0,
+                 uik:  +1, mtm: 0, umr: 0, nyam: 0, saki:+1}
+      },
+      {
+        text: "C.比起学习，我更想亲手做点什么",
+        scores: {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                 ran:  0, moca:0, hmr: 0, tme:  +1, tgm: 0,
+                 aya:  0, hina:+1, cst: 0, maya: 0, eve: 0,
+                 ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                 kkr:  +1, kor: 0, hgm: 0, kanon:0, msk: 0,
+                 msr:  0, toko:0, nnm: +1, tks:  0, rui: 0,
+                 layer:0, lock:0, mask:+1, pareo:0, chu: 0,
+                 tmr:  0, anon:0, rana:0, soyo: 0, taki:+1,
+                 uik:  0, mtm: +1, umr: 0, nyam: +1, saki:0}
+      }
+    ]
+  }
+];
+
+// 3. 全局变量初始化
+let currentQuestionIndex = 0;
+let userAnswers = []; // 记录每道题选的选项索引
+let scoreParams = {ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                   ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                   aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                   ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                   kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                   msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                   layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                   tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                   uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0}; // 计分参数
+const quizVersion = "1.2";
+const apiBase = window.BANDORI_API_BASE || "";
+const saveEndpoint = `${apiBase}/api/save-result`;
+let currentAttemptId = createAttemptId();
+
+function createAttemptId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildResultPayload(sortedResults) {
+  const bestMatch = sortedResults[0] || null;
+  const topThree = sortedResults.slice(0, 3);
+
+  return {
+    attemptId: currentAttemptId,
+    quizVersion,
+    totalQuestions: quizData.length,
+    answers: userAnswers,
+    bestMatch,
+    topThree,
+    scores: scoreParams,
+    submittedAt: new Date().toISOString(),
+    pagePath: window.location.pathname,
+    pageUrl: window.location.href,
+    userAgent: navigator.userAgent
+  };
+}
+
+async function submitResult(payload) {
+  try {
+    await fetch(saveEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      keepalive: true
+    });
+  } catch (error) {
+    console.warn("Result save skipped:", error);
+  }
+}
+
+// 计算每个角色参数的最大可能得分（新增函数）
+function calculateMaxScores() {
+  const maxScores = {};
+  // 初始化所有参数的最大分值为0
+  Object.keys(scoreParams).forEach(key => {
+    maxScores[key] = 0;
+  });
+  
+  // 遍历每道题，找到每个参数在该题中的最大可能得分
+  quizData.forEach(quiz => {
+    quiz.options.forEach(option => {
+      const scores = option.scores;
+      Object.keys(scores).forEach(key => {
+        // 比较当前最大值和该选项分值，取更大的那个
+        if (scores[key] > maxScores[key]) {
+          maxScores[key] = scores[key];
+        }
+      });
+    });
+  });
+  
+  // 累加每道题的最大分值，得到全局最大值
+  const totalMaxScores = {};
+  Object.keys(maxScores).forEach(key => {
+    totalMaxScores[key] = 0;
+  });
+  
+  quizData.forEach(quiz => {
+    // 对每道题，找到每个参数的最大可能得分并累加
+    Object.keys(totalMaxScores).forEach(key => {
+      let questionMax = -Infinity;
+      quiz.options.forEach(option => {
+        if (option.scores[key] > questionMax) {
+          questionMax = option.scores[key];
+        }
+      });
+      totalMaxScores[key] += questionMax;
+    });
+  });
+  
+  return totalMaxScores;
+}
+
+// 4. 页面切换：开始测试
+document.getElementById('start-btn').addEventListener('click', function() {
+  // 重置所有参数（防止重新测试时数据残留）
+  currentQuestionIndex = 0;
+  userAnswers = [];
+  currentAttemptId = createAttemptId();
+  scoreParams = { ksm:  0, tae: 0, rimi:0, saya: 0, ars: 0,
+                  ran:  0, moca:0, hmr: 0, tme:  0, tgm: 0,
+                  aya:  0, hina:0, cst: 0, maya: 0, eve: 0,
+                  ykn:  0, sayo:0, lisa:0, ako:  0, rinko:0,
+                  kkr:  0, kor: 0, hgm: 0, kanon:0, msk: 0,
+                  msr:  0, toko:0, nnm: 0, tks:  0, rui: 0,
+                  layer:0, lock:0, mask:0, pareo:0, chu: 0,
+                  tmr:  0, anon:0, rana:0, soyo: 0, taki:0,
+                  uik:  0, mtm: 0, umr: 0, nyam: 0, saki:0};
+  
+  document.getElementById('welcome-page').style.display = 'none';
+  document.getElementById('quiz-page').style.display = 'block';
+  document.getElementById('result-page').style.display = 'none';
+  
+  loadQuestion(currentQuestionIndex);
+  updateProgress();
+  updateBackBtnStatus();
+});
+
+// 5. 加载题目和选项
+function loadQuestion(index) {
+  const quiz = quizData[index];
+  document.getElementById('question').textContent = quiz.question;
+  
+  const optionsContainer = document.getElementById('options');
+  optionsContainer.innerHTML = '';
+  
+  // 生成选项按钮
+  quiz.options.forEach((option, optIndex) => {
+    const optionBtn = document.createElement('button');
+    optionBtn.className = 'option-btn';
+    // 标记已选选项（优化选中样式）
+    if (userAnswers[index] === optIndex) {
+      optionBtn.classList.add('selected');
+    }
+    optionBtn.textContent = option.text;
+    
+    // 选项点击事件（核心：计分逻辑+样式优化）
+    optionBtn.addEventListener('click', function() {
+      // 清除当前题所有选项的选中样式
+      const allOptions = document.querySelectorAll('.option-btn');
+      allOptions.forEach(btn => btn.classList.remove('selected'));
+      // 标记当前选项为选中
+      this.classList.add('selected');
+      
+      // 1. 如果这道题之前选过，先撤销之前的分数变动
+      if (userAnswers[index] !== undefined) {
+        const prevOption = quiz.options[userAnswers[index]];
+        undoScore(prevOption.scores); // 撤销旧分数
+      }
+      
+      // 2. 记录当前选择，更新分数
+      userAnswers[index] = optIndex;
+      addScore(option.scores); // 新增当前选项的分数
+      
+      // 3. 跳转到下一题或显示结果
+      if (index < quizData.length - 1) {
+        currentQuestionIndex++;
+        loadQuestion(currentQuestionIndex);
+        updateProgress();
+        updateBackBtnStatus();
+      } else {
+        // 所有题目答完，显示结果
+        showResult();
+      }
+    });
+    optionsContainer.appendChild(optionBtn);
+  });
+}
+
+// 6. 分数操作函数
+// 加分函数（根据选项规则更新参数）
+function addScore(scoreRule) {
+  if (!scoreRule) return; // 增加边界判断，避免undefined
+  for (const key in scoreRule) {
+    scoreParams[key] += scoreRule[key];
+  }
+}
+
+// 撤销分数函数（用于回退/重新选择）
+function undoScore(scoreRule) {
+  if (!scoreRule) return; // 增加边界判断，避免undefined
+  for (const key in scoreRule) {
+    scoreParams[key] -= scoreRule[key];
+  }
+}
+
+// 7. 进度条和回退按钮更新
+function updateProgress() {
+  const progress = ((currentQuestionIndex + 1) / quizData.length) * 100;
+  document.getElementById('progress-bar').style.width = `${progress}%`;
+  document.getElementById('progress-text').textContent = `${currentQuestionIndex + 1}/${quizData.length}`;
+}
+
+function updateBackBtnStatus() {
+  const backBtn = document.getElementById('back-btn');
+  if (currentQuestionIndex === 0) {
+    backBtn.disabled = true;
+    backBtn.style.display = 'none';
+  } else {
+    backBtn.disabled = false;
+    backBtn.style.display = 'block';
+  }
+}
+
+// 8. 回退按钮逻辑（优化：增加边界判断）
+document.getElementById('back-btn').addEventListener('click', function() {
+  if (currentQuestionIndex > 0) {
+    // 1. 撤销当前题的分数（仅当选过选项时）
+    if (userAnswers[currentQuestionIndex] !== undefined) {
+      const currentQuiz = quizData[currentQuestionIndex];
+      const selectedOption = currentQuiz.options[userAnswers[currentQuestionIndex]];
+      undoScore(selectedOption.scores); // 撤销分数
+      userAnswers[currentQuestionIndex] = undefined; // 清空当前题答案
+    }
+    
+    // 2. 回退到上一题
+    currentQuestionIndex--;
+    loadQuestion(currentQuestionIndex);
+    updateProgress();
+    updateBackBtnStatus();
+  }
+});
+
+// 9. 显示结果（新增：百分比计算 + 最大/最小三个显示）
+// 显示结果（新版：开关控制 + 只显示角色名+百分比）
+function showResult() {
+  // 计算每个角色理论最高总分
+  const maxScores = calculateMaxScores();
+
+  // 计算角色 + 百分比
+  const scoreArray = Object.entries(scoreParams).map(([key, value]) => {
+    const max = maxScores[key] || 1;
+    const pct = ((value / max) * 100).toFixed(1);
+    return {
+      key,
+      name: characterMap[key] || key,
+      percentage: pct,
+    };
+  });
+
+  // 排序
+  const sorted = [...scoreArray].sort((a, b) => b.percentage - a.percentage);
+  const top3 = sorted.slice(0, 3);
+  const bottom3 = sorted.slice(-3);
+
+  // 清空旧内容
+  const resultPage = document.getElementById("result-page");
+  const resultList = document.getElementById("result-list");
+  resultList.innerHTML = "";
+
+  // 清除旧开关与卡片
+  document.querySelectorAll(".result-switch").forEach(el => el.remove());
+  const oldBox = document.getElementById("extremes-boxes");
+  if (oldBox) oldBox.remove();
+
+  // ==========================================
+  // 生成两个开关
+  const switchWrap = document.createElement("div");
+  switchWrap.style.margin = "0 0 1rem 0";
+  switchWrap.style.display = "flex";
+  switchWrap.style.gap = "1rem";
+  switchWrap.style.justifyContent = "center";
+
+  // 开关1：显示全部角色（默认关闭）
+  // 开关1：显示全部角色分数（默认关闭）
+  const sw1 = createSwitch("显示全部角色分数", false, (checked) => {
+    resultList.style.display = checked ? "flex" : "none";
+  
+    // 控制「显示全部角色寄语」开关的显示/隐藏
+    if (checked) {
+      // 生成「显示全部角色寄语」开关（仅首次生成）
+      if (!document.getElementById("quote-switch")) {
+        const quoteSw = createSwitch("显示全部角色寄语", false, (quoteChecked) => {
+          // 刷新全角色列表的显示（根据是否勾选寄语切换）
+          renderFullCharacterList(sorted, quoteChecked);
+        });
+        quoteSw.id = "quote-switch";
+        switchWrap.appendChild(quoteSw);
+      }
+    } else {
+      // 隐藏寄语开关
+      const quoteSw = document.getElementById("quote-switch");
+      if (quoteSw) quoteSw.remove();
+    }
+  });
+
+  // 开关2：显示百分比（默认关闭）
+  const sw2 = createSwitch("显示角色匹配度", false, (checked) => {
+    document.querySelectorAll(".extreme-item .pct").forEach(el => {
+      el.style.display = checked ? "block" : "none";
+    });
+  });
+
+  switchWrap.append(sw1, sw2);
+  resultPage.insertBefore(switchWrap, resultList);
+
+  // ==========================================
+  // 最高3 + 最低3 卡片
+  const boxContainer = document.createElement("div");
+  boxContainer.id = "extremes-boxes";
+  boxContainer.style.display = "flex";
+  boxContainer.style.flexWrap = "wrap";
+  boxContainer.style.gap = "0.8rem";
+  boxContainer.style.justifyContent = "center";
+  boxContainer.style.marginBottom = "2rem";
+
+  // 最相似标题
+  const topTitle = document.createElement("div");
+  topTitle.style.fontSize = "1.1rem";
+  topTitle.style.fontWeight = "600";
+  topTitle.style.marginBottom = "1rem";
+  topTitle.style.width = "100%";
+  topTitle.textContent = "与你最相似的角色是：";
+  boxContainer.appendChild(topTitle);
+
+  top3.forEach(item => boxContainer.appendChild(createCard(item, "top")));
+
+  // 中间加大间隔
+  const spacer = document.createElement("div");
+  spacer.style.width = "100%";
+  spacer.style.height = "3rem"; // 间隔大小，可改
+  boxContainer.appendChild(spacer);
+
+  // 最不相似标题
+  const bottomTitle = document.createElement("div");
+  bottomTitle.style.fontSize = "1.1rem";
+  bottomTitle.style.fontWeight = "600";
+  bottomTitle.style.marginBottom = "1rem";
+  bottomTitle.style.width = "100%";
+  bottomTitle.textContent = "与你最不相似的角色是：";
+  boxContainer.appendChild(bottomTitle);
+
+  bottom3.forEach(item => boxContainer.appendChild(createCard(item, "bottom")));
+  resultPage.insertBefore(boxContainer, resultList);
+
+  // ==========================================
+  // 渲染全角色列表（默认隐藏）
+  // ==============================================
+  // 初始化渲染全角色列表（默认隐藏，不显示寄语）
+  renderFullCharacterList(sorted, false);
+
+  document.querySelectorAll('.qa-box')?.forEach(el => el.remove());// 先清除旧的 QA
+
+  const qaBox = document.createElement("div");
+  qaBox.className = "qa-box"; //用于识别删除
+  qaBox.style.marginTop = "2.5rem";
+  qaBox.style.marginBottom = "2.5rem";
+  qaBox.style.textAlign = "left";
+  qaBox.style.fontSize = "12px";
+  qaBox.style.fontWeight = "normal";
+  qaBox.style.color = "#475569";
+  qaBox.style.lineHeight = "1.6";
+  qaBox.style.padding = "0 0.2rem";
+
+  qaBox.innerHTML = `
+    <div style="margin-bottom: 0.3rem; display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">Q1：</span>
+      <span>这个测试是怎样计算角色的匹配度的？</span>
+    </div>
+    <div style="margin-bottom: 0.9rem; display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">A1：</span>
+      <span>本测试为每一个角色设置了独立的参数，且不与选项绑定，每一个选项都会为角色累计不同的分值，最后累加计算得到匹配度。</span>
+    </div>
+
+    <div style="margin-bottom: 0.3rem; display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">Q2：</span>
+      <span>为什么显示3个相似/不相似角色，而不是1个？</span>
+    </div>
+    <div style="margin-bottom: 0.9rem; display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">A2：</span>
+      <span>由于题目数量有限，官方角色设定中存在比较相似的角色，且作者对角色的理解存在不足，测试中会出现数位角色相似度相近的情况，此时如果只显示1个角色会显得不够全面。</span>
+    </div>
+
+    <div style="margin-bottom: 0.3rem; display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">Q3：</span>
+      <span>后续还会继续更新吗？</span>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+      <span style="font-weight:600; color:#334155; white-space: nowrap;">A3：</span>
+      <span>会的，后续会持续优化题目以及界面显示；对于性格转变较大的角色，也计划将其“早期”状态区分开来；对于新角色和目前塑造仍不完全的角色，后续会随官方剧情进展进行更新。</span>
+    </div>
+  `;
+
+  // 把 QA 加到页面里（最不相似3个框的正下方）
+  document.getElementById("extremes-boxes").after(qaBox);
+
+  resultList.style.display = "none";
+
+  // 切换到结果页
+  document.getElementById("quiz-page").style.display = "none";
+  document.getElementById("result-page").style.display = "block";
+  submitResult(buildResultPayload(sorted));
+}
+
+// 生成开关
+function createSwitch(label, checked, onChange) {
+  const wrap = document.createElement("label");
+  wrap.style.display = "flex";
+  wrap.style.alignItems = "center";
+  wrap.style.gap = "0.4rem";
+  wrap.style.fontSize = "0.9rem";
+  wrap.className = "result-switch";
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.addEventListener("change", () => onChange(input.checked));
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  wrap.append(input, text);
+  return wrap;
+}
+
+// 生成卡片
+function createCard(item, type) {
+  const card = document.createElement("div");
+  card.className = "extreme-item";
+  // 增大高度、内边距
+  card.style.padding = "1.4rem 1.2rem";
+  card.style.borderRadius = "10px";
+  card.style.minWidth = "150px";
+  card.style.textAlign = "center";
+  card.style.background = type === "top" ? "#eff6ff" : "#fef2f2";
+  card.style.border = "1px solid " + (type === "top" ? "#3b82f6" : "#ef4444");
+
+  // 加大名字字体 + 下方占位文字
+  card.innerHTML = `
+    <div style="font-weight:600; font-size: 1.2rem;">${item.name}</div>
+    <div style="margin-top:0.4rem; font-size:0.9rem; color:#555;">${characterDesc[item.key] || "在此输入文字"}</div>
+    <div class="pct" style="margin-top:0.3rem; display:none; color:#666;">
+      ${item.percentage}%
+    </div>
+  `;
+  return card;
+}
+// 渲染全角色列表（支持显示/隐藏寄语）
+function renderFullCharacterList(sortedArray, showQuotes) {
+  const resultList = document.getElementById("result-list");
+  resultList.innerHTML = ""; // 清空旧列表
+  
+  sortedArray.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "result-item";
+    
+    // 拼接内容：加粗名字 + 可选寄语 + 百分比（对齐样式）
+    let content = `<span style="font-weight: 600;">${item.name}</span>`;
+    if (showQuotes) {
+      // 寄语缩进对齐（用 &nbsp; 保证间距一致）
+      content += `<span style="margin: 0 8px; color: #64748b;">&nbsp;&nbsp;${characterQuotes[item.key] || ""}</span>`;
+    }
+    content += `<span style="color: #3b82f6; font-weight: 600;">${item.percentage}%</span>`;
+    
+    div.innerHTML = content;
+    resultList.appendChild(div);
+  });
+}
+
+// 10. 重新测试按钮
+document.getElementById('restart-btn').addEventListener('click', function() {
+  document.getElementById('result-page').style.display = 'none';
+  document.getElementById('welcome-page').style.display = 'block';
+});
+</script>
+</body>
+</html>
